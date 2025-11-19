@@ -4,6 +4,7 @@ const { FuseV1Options, FuseVersion } = require('@electron/fuses');
 module.exports = {
   packagerConfig: {
     asar: true,
+    executableName: 'nilaa-player',
   },
   rebuildConfig: {},
   makers: [
@@ -14,6 +15,13 @@ module.exports = {
     {
       name: '@electron-forge/maker-zip',
       platforms: ['darwin'],
+    },
+    {
+      name: '@electron-forge/maker-dmg',
+      config: {
+        format: 'ULFO',
+        name: 'Nilaa Player'
+      }
     },
     {
       name: '@electron-forge/maker-deb',
