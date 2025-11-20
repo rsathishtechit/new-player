@@ -42,10 +42,24 @@ module.exports = {
     force: true,
   },
   makers: [
+    // Windows installers
     {
       name: "@electron-forge/maker-squirrel",
-      config: {},
+      config: {
+        name: "NilaaPlayer",
+        authors: "sathish",
+        exe: "nilaa-player.exe",
+        setupExe: "Nilaa-Player-Setup.exe",
+        setupIcon: "./assets/icon.ico",
+        iconUrl: "https://raw.githubusercontent.com/rsathishtechit/new-player/master/assets/icon.ico",
+        loadingGif: "./assets/icon.png",
+      },
     },
+    {
+      name: "@electron-forge/maker-zip",
+      platforms: ["win32"],
+    },
+    // macOS installers
     {
       name: "@electron-forge/maker-zip",
       platforms: ["darwin"],
@@ -58,13 +72,22 @@ module.exports = {
         icon: "./assets/icon.icns",
       },
     },
+    // Linux installers
     {
       name: "@electron-forge/maker-deb",
-      config: {},
+      config: {
+        options: {
+          icon: "./assets/icon.png",
+        },
+      },
     },
     {
       name: "@electron-forge/maker-rpm",
-      config: {},
+      config: {
+        options: {
+          icon: "./assets/icon.png",
+        },
+      },
     },
   ],
   plugins: [
