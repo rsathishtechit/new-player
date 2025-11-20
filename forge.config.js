@@ -30,10 +30,24 @@ module.exports = {
       appBundleId: "com.nilaa.player",
       appCategoryType: "public.app-category.video",
     }),
-    // Don't prune these modules - they're needed at runtime
+    // Ignore patterns - most node_modules are bundled by Vite
+    // Only sqlite3 is needed at runtime (copied by packageAfterPrune hook)
     ignore: (file) => {
       if (!file) return false;
-      // Keep everything in node_modules/sqlite3
+
+      // Ignore all node_modules - we'll copy sqlite3 separately in the hook
+      if (
+        file.includes("/node_modules/") ||
+        file.includes("\\node_modules\\")
+      ) {
+        return true;
+      }
+
+      // Ignore development files
+      if (file.match(/\.(md|yml|yaml|gitignore|gitattributes)$/)) {
+        return true;
+      }
+
       return false;
     },
   },
@@ -51,7 +65,8 @@ module.exports = {
         exe: "nilaa-player.exe",
         setupExe: "Nilaa-Player-Setup.exe",
         setupIcon: "./assets/icon.ico",
-        iconUrl: "https://raw.githubusercontent.com/rsathishtechit/new-player/master/assets/icon.ico",
+        iconUrl:
+          "https://raw.githubusercontent.com/rsathishtechit/new-player/master/assets/icon.ico",
         loadingGif: "./assets/icon.png",
       },
     },

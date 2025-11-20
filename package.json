@@ -10,7 +10,10 @@
     "make": "electron-forge make",
     "publish": "electron-forge publish",
     "lint": "echo \"No linting configured\"",
-    "postinstall": "electron-rebuild -f -w sqlite3"
+    "postinstall": "electron-rebuild -f -w sqlite3",
+    "release:mac": "npm run make -- --platform=darwin",
+    "release:win": "npm run make -- --platform=win32",
+    "release:linux": "npm run make -- --platform=linux"
   },
   "keywords": [],
   "author": "sathish",
