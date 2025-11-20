@@ -7,18 +7,7 @@ const path = require("path");
 const fs = require("fs-extra");
 
 module.exports = {
-  hooks: {
-    packageAfterPrune: async (config, buildPath) => {
-      // Copy sqlite3 node_modules to the build
-      const sourceNodeModules = path.join(__dirname, "node_modules", "sqlite3");
-      const targetNodeModules = path.join(buildPath, "node_modules", "sqlite3");
-
-      if (fs.existsSync(sourceNodeModules)) {
-        await fs.copy(sourceNodeModules, targetNodeModules);
-        console.log("Copied sqlite3 to build path");
-      }
-    },
-  },
+  hooks: {},
   packagerConfig: {
     asar: {
       unpack: "**/*.{node,dll}",
@@ -30,21 +19,12 @@ module.exports = {
       appBundleId: "com.nilaa.player",
       appCategoryType: "public.app-category.video",
     }),
-    // Ignore patterns - most node_modules are bundled by Vite
-    // Only sqlite3 is needed at runtime (copied by packageAfterPrune hook)
+    // Simplified ignore - only exclude development directories
     ignore: (file) => {
       if (!file) return false;
 
-      // Ignore all node_modules - we'll copy sqlite3 separately in the hook
-      if (
-        file.includes("/node_modules/") ||
-        file.includes("\\node_modules\\")
-      ) {
-        return true;
-      }
-
-      // Ignore development files
-      if (file.match(/\.(md|yml|yaml|gitignore|gitattributes)$/)) {
+      // Ignore only specific directories that aren't needed in the package
+      if (file.match(/^\/(\.git|\.github|out|src)\//)) {
         return true;
       }
 
