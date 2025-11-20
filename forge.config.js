@@ -3,11 +3,25 @@ const { FuseV1Options, FuseVersion } = require("@electron/fuses");
 const {
   AutoUnpackNativesPlugin,
 } = require("@electron-forge/plugin-auto-unpack-natives");
+const path = require("path");
+const fs = require("fs-extra");
 
 module.exports = {
+  hooks: {
+    packageAfterPrune: async (config, buildPath) => {
+      // Copy sqlite3 node_modules to the build
+      const sourceNodeModules = path.join(__dirname, "node_modules", "sqlite3");
+      const targetNodeModules = path.join(buildPath, "node_modules", "sqlite3");
+
+      if (fs.existsSync(sourceNodeModules)) {
+        await fs.copy(sourceNodeModules, targetNodeModules);
+        console.log("Copied sqlite3 to build path");
+      }
+    },
+  },
   packagerConfig: {
     asar: {
-      unpack: "*.{node,dll}",
+      unpack: "**/*.{node,dll}",
     },
     executableName: "nilaa-player",
     icon: "./assets/icon", // Will use icon.ico, icon.icns, or icon.png based on platform
@@ -16,9 +30,16 @@ module.exports = {
       appBundleId: "com.nilaa.player",
       appCategoryType: "public.app-category.video",
     }),
+    // Don't prune these modules - they're needed at runtime
+    ignore: (file) => {
+      if (!file) return false;
+      // Keep everything in node_modules/sqlite3
+      return false;
+    },
   },
   rebuildConfig: {
     onlyModules: ["sqlite3"],
+    force: true,
   },
   makers: [
     {

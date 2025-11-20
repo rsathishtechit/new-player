@@ -1,12 +1,16 @@
-import sqlite3 from 'sqlite3';
-import path from 'node:path';
-import { app } from 'electron';
-import { v4 as uuidv4 } from 'uuid';
+import { createRequire } from "node:module";
+import path from "node:path";
+import { app } from "electron";
+import { v4 as uuidv4 } from "uuid";
+
+// Use CommonJS require for native modules (sqlite3)
+const require = createRequire(import.meta.url);
+const sqlite3 = require("sqlite3");
 
 let db;
 
 export function initDB() {
-  const dbPath = path.join(app.getPath('userData'), 'player.db');
+  const dbPath = path.join(app.getPath("userData"), "player.db");
   db = new sqlite3.Database(dbPath);
 
   db.serialize(() => {
@@ -72,24 +76,37 @@ export function initDB() {
 export function addCourse(title, coursePath, structure) {
   return new Promise((resolve, reject) => {
     const courseId = uuidv4();
-    
-    db.serialize(() => {
-      db.run('BEGIN TRANSACTION');
 
-      const insertCourse = db.prepare('INSERT INTO courses (id, title, path) VALUES (?, ?, ?)');
+    db.serialize(() => {
+      db.run("BEGIN TRANSACTION");
+
+      const insertCourse = db.prepare(
+        "INSERT INTO courses (id, title, path) VALUES (?, ?, ?)"
+      );
       insertCourse.run(courseId, title, coursePath);
       insertCourse.finalize();
 
       let videoOrder = 0;
       let sectionOrder = 0;
 
-      const insertSection = db.prepare('INSERT INTO sections (id, course_id, title, order_index) VALUES (?, ?, ?, ?)');
-      const insertVideo = db.prepare('INSERT INTO videos (id, course_id, section_id, title, path, order_index) VALUES (?, ?, ?, ?, ?, ?)');
+      const insertSection = db.prepare(
+        "INSERT INTO sections (id, course_id, title, order_index) VALUES (?, ?, ?, ?)"
+      );
+      const insertVideo = db.prepare(
+        "INSERT INTO videos (id, course_id, section_id, title, path, order_index) VALUES (?, ?, ?, ?, ?, ?)"
+      );
 
       // Handle root level videos
       if (structure.videos && structure.videos.length > 0) {
         for (const video of structure.videos) {
-          insertVideo.run(uuidv4(), courseId, null, video.name, video.path, videoOrder++);
+          insertVideo.run(
+            uuidv4(),
+            courseId,
+            null,
+            video.name,
+            video.path,
+            videoOrder++
+          );
         }
       }
 
@@ -98,10 +115,17 @@ export function addCourse(title, coursePath, structure) {
         for (const section of structure.sections) {
           const sectionId = uuidv4();
           insertSection.run(sectionId, courseId, section.name, sectionOrder++);
-          
+
           if (section.videos && section.videos.length > 0) {
             for (const video of section.videos) {
-              insertVideo.run(uuidv4(), courseId, sectionId, video.name, video.path, videoOrder++);
+              insertVideo.run(
+                uuidv4(),
+                courseId,
+                sectionId,
+                video.name,
+                video.path,
+                videoOrder++
+              );
             }
           }
         }
@@ -110,7 +134,7 @@ export function addCourse(title, coursePath, structure) {
       insertSection.finalize();
       insertVideo.finalize();
 
-      db.run('COMMIT', (err) => {
+      db.run("COMMIT", (err) => {
         if (err) reject(err);
         else resolve(courseId);
       });
@@ -120,7 +144,8 @@ export function addCourse(title, coursePath, structure) {
 
 export function getCourses() {
   return new Promise((resolve, reject) => {
-    db.all(`
+    db.all(
+      `
       SELECT 
         c.*,
         COUNT(v.id) as total_videos,
@@ -131,67 +156,81 @@ export function getCourses() {
       LEFT JOIN progress p ON v.id = p.video_id
       GROUP BY c.id
       ORDER BY c.created_at DESC
-    `, (err, rows) => {
-      if (err) reject(err);
-      else resolve(rows);
-    });
+    `,
+      (err, rows) => {
+        if (err) reject(err);
+        else resolve(rows);
+      }
+    );
   });
 }
 
 export function getCourseDetails(courseId) {
   return new Promise((resolve, reject) => {
-    db.get('SELECT * FROM courses WHERE id = ?', [courseId], (err, course) => {
+    db.get("SELECT * FROM courses WHERE id = ?", [courseId], (err, course) => {
       if (err) return reject(err);
       if (!course) return resolve(null);
 
-      db.all('SELECT * FROM sections WHERE course_id = ? ORDER BY order_index', [courseId], (err, sections) => {
-        if (err) return reject(err);
+      db.all(
+        "SELECT * FROM sections WHERE course_id = ? ORDER BY order_index",
+        [courseId],
+        (err, sections) => {
+          if (err) return reject(err);
 
-        db.all(`
+          db.all(
+            `
           SELECT v.*, p.current_time, p.is_completed, p.last_watched_at 
           FROM videos v
           LEFT JOIN progress p ON v.id = p.video_id
           WHERE v.course_id = ? 
           ORDER BY v.order_index
-        `, [courseId], (err, videos) => {
-          if (err) return reject(err);
+        `,
+            [courseId],
+            (err, videos) => {
+              if (err) return reject(err);
 
-          const rootVideos = videos.filter(v => !v.section_id);
-          const sectionsWithVideos = sections.map(section => ({
-            ...section,
-            videos: videos.filter(v => v.section_id === section.id)
-          }));
+              const rootVideos = videos.filter((v) => !v.section_id);
+              const sectionsWithVideos = sections.map((section) => ({
+                ...section,
+                videos: videos.filter((v) => v.section_id === section.id),
+              }));
 
-          resolve({
-            ...course,
-            rootVideos,
-            sections: sectionsWithVideos
-          });
-        });
-      });
+              resolve({
+                ...course,
+                rootVideos,
+                sections: sectionsWithVideos,
+              });
+            }
+          );
+        }
+      );
     });
   });
 }
 
 export function updateProgress(videoId, courseId, currentTime, isCompleted) {
   return new Promise((resolve, reject) => {
-    db.run(`
+    db.run(
+      `
       INSERT INTO progress (video_id, course_id, current_time, is_completed, last_watched_at)
       VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
       ON CONFLICT(video_id) DO UPDATE SET
         current_time = excluded.current_time,
         is_completed = MAX(is_completed, excluded.is_completed),
         last_watched_at = CURRENT_TIMESTAMP
-    `, [videoId, courseId, currentTime, isCompleted ? 1 : 0], (err) => {
-      if (err) reject(err);
-      else resolve();
-    });
+    `,
+      [videoId, courseId, currentTime, isCompleted ? 1 : 0],
+      (err) => {
+        if (err) reject(err);
+        else resolve();
+      }
+    );
   });
 }
 
 export function getSetting(key) {
   return new Promise((resolve, reject) => {
-    db.get('SELECT value FROM settings WHERE key = ?', [key], (err, row) => {
+    db.get("SELECT value FROM settings WHERE key = ?", [key], (err, row) => {
       if (err) reject(err);
       else resolve(row ? row.value : null);
     });
@@ -200,19 +239,23 @@ export function getSetting(key) {
 
 export function setSetting(key, value) {
   return new Promise((resolve, reject) => {
-    db.run(`
+    db.run(
+      `
       INSERT INTO settings (key, value) VALUES (?, ?)
       ON CONFLICT(key) DO UPDATE SET value = excluded.value
-    `, [key, value], (err) => {
-      if (err) reject(err);
-      else resolve();
-    });
+    `,
+      [key, value],
+      (err) => {
+        if (err) reject(err);
+        else resolve();
+      }
+    );
   });
 }
 
 export function resetVideoProgress(videoId) {
   return new Promise((resolve, reject) => {
-    db.run('DELETE FROM progress WHERE video_id = ?', [videoId], (err) => {
+    db.run("DELETE FROM progress WHERE video_id = ?", [videoId], (err) => {
       if (err) reject(err);
       else resolve();
     });
@@ -221,7 +264,7 @@ export function resetVideoProgress(videoId) {
 
 export function resetCourseProgress(courseId) {
   return new Promise((resolve, reject) => {
-    db.run('DELETE FROM progress WHERE course_id = ?', [courseId], (err) => {
+    db.run("DELETE FROM progress WHERE course_id = ?", [courseId], (err) => {
       if (err) reject(err);
       else resolve();
     });
@@ -230,16 +273,20 @@ export function resetCourseProgress(courseId) {
 
 export function markVideoComplete(videoId, courseId) {
   return new Promise((resolve, reject) => {
-    db.run(`
+    db.run(
+      `
       INSERT INTO progress (video_id, course_id, current_time, is_completed, last_watched_at)
       VALUES (?, ?, 0, 1, CURRENT_TIMESTAMP)
       ON CONFLICT(video_id) DO UPDATE SET
         is_completed = 1,
         last_watched_at = CURRENT_TIMESTAMP
-    `, [videoId, courseId], (err) => {
-      if (err) reject(err);
-      else resolve();
-    });
+    `,
+      [videoId, courseId],
+      (err) => {
+        if (err) reject(err);
+        else resolve();
+      }
+    );
   });
 }
 
@@ -247,7 +294,7 @@ export function deleteCourse(courseId) {
   return new Promise((resolve, reject) => {
     // Due to CASCADE constraints, deleting the course will automatically delete
     // all related sections, videos, and progress records
-    db.run('DELETE FROM courses WHERE id = ?', [courseId], (err) => {
+    db.run("DELETE FROM courses WHERE id = ?", [courseId], (err) => {
       if (err) reject(err);
       else resolve();
     });
