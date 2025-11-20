@@ -3,36 +3,12 @@ const { FuseV1Options, FuseVersion } = require("@electron/fuses");
 const {
   AutoUnpackNativesPlugin,
 } = require("@electron-forge/plugin-auto-unpack-natives");
-const fs = require("fs");
-const path = require("path");
 
 module.exports = {
   packagerConfig: {
     asar: {
-      unpack: ["*.{node,dll}", "**/node_modules/electron-updater/**"],
+      unpack: "*.{node,dll}",
     },
-    afterCopy: [
-      async (buildPath, electronVersion, platform, arch) => {
-        // Copy electron-updater to build directory so it's included in the asar
-        // Only copy if not already present to avoid unnecessary work
-        const srcPath = path.join(
-          __dirname,
-          "node_modules",
-          "electron-updater"
-        );
-        const destPath = path.join(
-          buildPath,
-          "node_modules",
-          "electron-updater"
-        );
-
-        if (fs.existsSync(srcPath) && !fs.existsSync(destPath)) {
-          fs.mkdirSync(path.dirname(destPath), { recursive: true });
-          fs.cpSync(srcPath, destPath, { recursive: true });
-          console.log("✓ Copied electron-updater to build directory");
-        }
-      },
-    ],
     executableName: "nilaa-player",
     icon: "./assets/icon", // Will use icon.ico, icon.icns, or icon.png based on platform
     // macOS specific: ensure icon is properly embedded

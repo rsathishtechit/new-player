@@ -1,5 +1,4 @@
 import { app, BrowserWindow, ipcMain, dialog, protocol, nativeImage, Tray, Menu } from 'electron';
-import { autoUpdater } from 'electron-updater';
 import path from 'node:path';
 import fs from 'node:fs';
 import started from 'electron-squirrel-startup';
@@ -359,79 +358,6 @@ function createTray() {
   }
 }
 
-// Configure auto-updater
-function setupAutoUpdater() {
-  // Configure updater for GitHub releases
-  autoUpdater.setFeedURL({
-    provider: 'github',
-    owner: 'rsathishtechit',
-    repo: 'new-player',
-  });
-
-  // Check for updates every 4 hours
-  setInterval(() => {
-    autoUpdater.checkForUpdates().catch(err => {
-      console.log('Update check failed:', err);
-    });
-  }, 4 * 60 * 60 * 1000);
-
-  // Check for updates on app start (after a delay)
-  setTimeout(() => {
-    autoUpdater.checkForUpdates().catch(err => {
-      console.log('Initial update check failed:', err);
-    });
-  }, 5000);
-
-  // Update available
-  autoUpdater.on('update-available', (info) => {
-    if (mainWindow) {
-      mainWindow.webContents.send('update-available', {
-        version: info.version,
-        releaseDate: info.releaseDate,
-        releaseNotes: info.releaseNotes,
-      });
-    }
-  });
-
-  // Update not available
-  autoUpdater.on('update-not-available', () => {
-    if (mainWindow) {
-      mainWindow.webContents.send('update-not-available');
-    }
-  });
-
-  // Update download progress
-  autoUpdater.on('download-progress', (progressObj) => {
-    if (mainWindow) {
-      mainWindow.webContents.send('update-progress', {
-        percent: progressObj.percent,
-        transferred: progressObj.transferred,
-        total: progressObj.total,
-      });
-    }
-  });
-
-  // Update downloaded and ready to install
-  autoUpdater.on('update-downloaded', (info) => {
-    if (mainWindow) {
-      mainWindow.webContents.send('update-downloaded', {
-        version: info.version,
-        releaseDate: info.releaseDate,
-        releaseNotes: info.releaseNotes,
-      });
-    }
-  });
-
-  // Error handling
-  autoUpdater.on('error', (error) => {
-    console.error('Auto-updater error:', error);
-    if (mainWindow) {
-      mainWindow.webContents.send('update-error', {
-        message: error.message,
-      });
-    }
-  });
-}
 
 // Register IPC Handlers
 app.whenReady().then(async () => {
@@ -474,10 +400,6 @@ app.whenReady().then(async () => {
   // Create system tray
   createTray();
   
-  // Setup auto-updater (only in production)
-  if (app.isPackaged) {
-    setupAutoUpdater();
-  }
   // Register custom protocol for local video files if needed, 
   // but webSecurity: false is often easier for local files in Electron
   protocol.registerFileProtocol('local-video', (request, callback) => {
@@ -539,25 +461,6 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('db:deleteCourse', async (event, courseId) => {
     await deleteCourse(courseId);
-  });
-
-  // Auto-updater IPC handlers
-  ipcMain.handle('updater:checkForUpdates', async () => {
-    if (app.isPackaged) {
-      try {
-        await autoUpdater.checkForUpdates();
-        return { success: true };
-      } catch (error) {
-        return { success: false, error: error.message };
-      }
-    }
-    return { success: false, error: 'Not available in development' };
-  });
-
-  ipcMain.handle('updater:quitAndInstall', () => {
-    if (app.isPackaged) {
-      autoUpdater.quitAndInstall(false, true);
-    }
   });
 
   // Create splash screen first

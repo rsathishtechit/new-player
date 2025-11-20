@@ -4,8 +4,7 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   build: {
     rollupOptions: {
-      external: ['sqlite3', 'electron-updater']
-      // electron-updater must be external and available from node_modules at runtime
+      external: ['sqlite3']
     }
   }
 });
