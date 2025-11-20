@@ -4,6 +4,7 @@ import Layout from './components/Layout';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const CoursePlayer = lazy(() => import('./pages/CoursePlayer'));
+const Settings = lazy(() => import('./pages/Settings'));
 
 export const router = createHashRouter([
   {
@@ -17,6 +18,10 @@ export const router = createHashRouter([
       {
         path: 'course/:courseId',
         element: <CoursePlayer />,
+      },
+      {
+        path: 'settings',
+        element: <Settings />,
       },
     ],
   },

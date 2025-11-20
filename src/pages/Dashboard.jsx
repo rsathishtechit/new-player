@@ -176,7 +176,10 @@ export default function Dashboard() {
                 </div>
               </button>
 
-              <button className="w-full flex items-center gap-4 p-4 bg-gray-700/50 hover:bg-gray-700 rounded-xl transition-all group">
+              <button 
+                onClick={() => navigate('/settings')}
+                className="w-full flex items-center gap-4 p-4 bg-gray-700/50 hover:bg-gray-700 rounded-xl transition-all group"
+              >
                 <Settings className="w-5 h-5 text-gray-300 group-hover:text-white transition-colors" />
                 <div className="text-left flex-1">
                   <div className="font-semibold text-white">Settings</div>

@@ -15,11 +15,24 @@ export default function CoursePlayer() {
   const playerRef = useRef(null);
   const [autoplayEnabled, setAutoplayEnabled] = useState(true);
   const [sidebarVisible, setSidebarVisible] = useState(true);
+  const [skipForwardDuration, setSkipForwardDuration] = useState(5);
+  const [skipBackwardDuration, setSkipBackwardDuration] = useState(5);
+  const sidebarScrollRef = useRef(null);
+  const videoItemRefs = useRef({});
+  const wasFullscreenRef = useRef(false);
 
   useEffect(() => {
     loadCourse();
     loadAutoplaySetting();
+    loadSkipSettings();
   }, [courseId]);
+
+  const loadSkipSettings = async () => {
+    const skipForward = await window.electronAPI.getSetting('skipForwardDuration');
+    const skipBackward = await window.electronAPI.getSetting('skipBackwardDuration');
+    setSkipForwardDuration(skipForward ? parseFloat(skipForward) : 5);
+    setSkipBackwardDuration(skipBackward ? parseFloat(skipBackward) : 5);
+  };
 
   const loadAutoplaySetting = async () => {
     const setting = await window.electronAPI.getSetting('autoplay');
@@ -37,11 +50,11 @@ export default function CoursePlayer() {
       switch(e.key.toLowerCase()) {
         case 'arrowleft':
           e.preventDefault();
-          playerRef.current.skip(-5);
+          playerRef.current.skip(-skipBackwardDuration);
           break;
         case 'arrowright':
           e.preventDefault();
-          playerRef.current.skip(5);
+          playerRef.current.skip(skipForwardDuration);
           break;
         case 'f':
           e.preventDefault();
@@ -112,15 +125,46 @@ export default function CoursePlayer() {
     const data = await window.electronAPI.getCourse(courseId);
     setCourse(data);
     
-    // Auto-select first video if none active
     if (data && !activeVideo) {
-      const firstVideo = data.rootVideos[0] || (data.sections[0]?.videos[0]);
-      if (firstVideo) {
-        setActiveVideo(firstVideo);
-        // Expand the section containing the first video
-        if (firstVideo.section_id) {
-          setExpandedSections(new Set([firstVideo.section_id]));
+      // Find the last played video (by last_watched_at or current_time > 0)
+      const allVideos = [...data.rootVideos, ...data.sections.flatMap(s => s.videos)];
+      
+      // Filter videos that have been watched (have progress)
+      const watchedVideos = allVideos.filter(v => 
+        v.last_watched_at || (v.current_time && v.current_time > 0)
+      );
+      
+      let videoToLoad = null;
+      
+      if (watchedVideos.length > 0) {
+        // Sort by last_watched_at (most recent first), then by current_time
+        watchedVideos.sort((a, b) => {
+          if (a.last_watched_at && b.last_watched_at) {
+            return new Date(b.last_watched_at) - new Date(a.last_watched_at);
+          }
+          if (a.last_watched_at) return -1;
+          if (b.last_watched_at) return 1;
+          return (b.current_time || 0) - (a.current_time || 0);
+        });
+        videoToLoad = watchedVideos[0];
+      } else {
+        // No watched videos, select first video
+        videoToLoad = data.rootVideos[0] || (data.sections[0]?.videos[0]);
+      }
+      
+      if (videoToLoad) {
+        setActiveVideo(videoToLoad);
+        // Expand the section containing the video
+        if (videoToLoad.section_id) {
+          setExpandedSections(new Set([videoToLoad.section_id]));
         }
+      }
+    } else if (data && activeVideo) {
+      // If we already have an active video, ensure its section is expanded
+      const allVideos = [...data.rootVideos, ...data.sections.flatMap(s => s.videos)];
+      const currentVideo = allVideos.find(v => v.id === activeVideo.id);
+      if (currentVideo?.section_id) {
+        setExpandedSections(prev => new Set([...prev, currentVideo.section_id]));
       }
     }
   };
@@ -137,7 +181,47 @@ export default function CoursePlayer() {
 
   const handleVideoSelect = (video) => {
     setActiveVideo(video);
+    // Expand section if video is in a section
+    if (video.section_id) {
+      setExpandedSections(prev => new Set([...prev, video.section_id]));
+    }
   };
+
+  // Scroll active video into view
+  useEffect(() => {
+    if (activeVideo && sidebarScrollRef.current) {
+      // Use a function to retry scrolling if element isn't found immediately
+      const scrollToVideo = (retries = 5) => {
+        const videoElement = videoItemRefs.current[activeVideo.id];
+        if (videoElement) {
+          videoElement.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center',
+            inline: 'nearest'
+          });
+        } else if (retries > 0) {
+          // Retry if element not found (might be in collapsed section or DOM not updated)
+          setTimeout(() => scrollToVideo(retries - 1), 100);
+        }
+      };
+      
+      // Initial delay to ensure DOM is updated and sections are expanded
+      setTimeout(() => scrollToVideo(), 300);
+    }
+  }, [activeVideo, expandedSections]);
+
+  // Restore fullscreen when video changes if it was previously in fullscreen
+  useEffect(() => {
+    if (activeVideo && wasFullscreenRef.current && playerRef.current && playerRef.current.requestFullscreen) {
+      // Wait for video player to be ready before requesting fullscreen
+      const timer = setTimeout(() => {
+        if (playerRef.current && !playerRef.current.isFullscreen()) {
+          playerRef.current.requestFullscreen();
+        }
+      }, 800);
+      return () => clearTimeout(timer);
+    }
+  }, [activeVideo]);
 
   const handleTimeUpdate = useCallback((time) => {
     setCurrentTime(time);
@@ -156,6 +240,11 @@ export default function CoursePlayer() {
 
   const handleVideoEnd = useCallback(() => {
     if (activeVideo) {
+      // Check if player is in fullscreen before switching (use the ref method)
+      if (playerRef.current && playerRef.current.isFullscreen) {
+        wasFullscreenRef.current = playerRef.current.isFullscreen();
+      }
+      
       window.electronAPI.saveProgress({
         videoId: activeVideo.id,
         courseId: course.id,
@@ -170,6 +259,11 @@ export default function CoursePlayer() {
         const currentIndex = allVideos.findIndex(v => v.id === activeVideo.id);
         if (currentIndex >= 0 && currentIndex < allVideos.length - 1) {
           const nextVideo = allVideos[currentIndex + 1];
+          // Expand section if next video is in a section
+          if (nextVideo.section_id) {
+            setExpandedSections(prev => new Set([...prev, nextVideo.section_id]));
+          }
+          // Note: Fullscreen will be restored by the useEffect that watches activeVideo
           setTimeout(() => setActiveVideo(nextVideo), 1000); // Small delay before next video
         }
       }
@@ -279,6 +373,9 @@ export default function CoursePlayer() {
               initialTime={activeVideo.current_time || 0}
               onTimeUpdate={handleTimeUpdate}
               onEnded={handleVideoEnd}
+              onFullscreenChange={(isFullscreen) => {
+                wasFullscreenRef.current = isFullscreen;
+              }}
             />
           ) : (
             <div className="h-full flex items-center justify-center text-gray-500">
@@ -377,10 +474,10 @@ export default function CoursePlayer() {
                 </button>
               </div>
               <p className="text-xs text-gray-400 mt-1">
-                Keyboard: ← → (skip 5s) • F (fullscreen) • Space/K (play/pause) • ↑ ↓ (volume) • M (mute)
+                Keyboard: ← → (skip {skipBackwardDuration}s/{skipForwardDuration}s) • F (fullscreen) • Space/K (play/pause) • ↑ ↓ (volume) • M (mute)
               </p>
             </div>
-            <div className="overflow-y-auto flex-1 p-2 space-y-1">
+            <div ref={sidebarScrollRef} className="overflow-y-auto flex-1 p-2 space-y-1">
               {/* Root Videos */}
               {course.rootVideos.map(video => (
                 <VideoItem 
@@ -389,6 +486,7 @@ export default function CoursePlayer() {
                   isActive={activeVideo?.id === video.id}
                   onSelect={() => handleVideoSelect(video)}
                   onMarkComplete={handleMarkVideoComplete}
+                  videoRef={(el) => videoItemRefs.current[video.id] = el}
                 />
               ))}
 
@@ -413,6 +511,7 @@ export default function CoursePlayer() {
                           isActive={activeVideo?.id === video.id}
                           onSelect={() => handleVideoSelect(video)}
                           onMarkComplete={handleMarkVideoComplete}
+                          videoRef={(el) => videoItemRefs.current[video.id] = el}
                         />
                       ))}
                     </div>
@@ -427,17 +526,20 @@ export default function CoursePlayer() {
   );
 }
 
-function VideoItem({ video, isActive, onSelect, onMarkComplete }) {
+function VideoItem({ video, isActive, onSelect, onMarkComplete, videoRef }) {
   const handleMarkComplete = (e) => {
     e.stopPropagation(); // Prevent triggering video selection
     onMarkComplete(video);
   };
 
   return (
-    <div className={clsx(
-      "w-full flex items-center gap-3 p-3 rounded-lg transition-all group",
-      isActive ? "bg-blue-600 text-white shadow-lg" : "hover:bg-gray-700 text-gray-300"
-    )}>
+    <div 
+      ref={videoRef}
+      className={clsx(
+        "w-full flex items-center gap-3 p-3 rounded-lg transition-all group",
+        isActive ? "bg-blue-600 text-white shadow-lg" : "hover:bg-gray-700 text-gray-300"
+      )}
+    >
       <button
         onClick={onSelect}
         className="flex-1 flex items-center gap-3 text-left"

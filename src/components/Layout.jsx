@@ -1,6 +1,6 @@
 import React, { Suspense } from 'react';
 import { Outlet, Link } from 'react-router-dom';
-import { Library } from 'lucide-react';
+import { Library, Settings } from 'lucide-react';
 import SplashScreen from './SplashScreen';
 
 export default function Layout() {
@@ -11,6 +11,13 @@ export default function Layout() {
           <Link to="/" className="flex items-center gap-2 text-xl font-bold text-blue-400 hover:text-blue-300 transition-colors">
             <Library className="w-6 h-6" />
             <span>Nilaa Player</span>
+          </Link>
+          <Link 
+            to="/settings" 
+            className="flex items-center gap-2 px-4 py-2 text-gray-300 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+          >
+            <Settings className="w-5 h-5" />
+            <span>Settings</span>
           </Link>
         </div>
       </header>
