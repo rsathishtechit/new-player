@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ChevronDown, ChevronRight, Play, CheckCircle, Circle, RotateCcw, PanelRightClose, PanelRightOpen } from 'lucide-react';
+import { ChevronDown, ChevronRight, Play, CheckCircle, Circle, RotateCcw, PanelRightClose, PanelRightOpen, Trash2 } from 'lucide-react';
 import clsx from 'clsx';
 import VideoPlayer from '../components/VideoPlayer';
 import videojs from 'video.js';
@@ -334,6 +334,18 @@ export default function CoursePlayer() {
     }
   };
 
+  const handleDeleteCourse = async () => {
+    if (confirm(`Are you sure you want to delete "${course.title}"? This will remove all videos, progress, and data associated with this course. This action cannot be undone.`)) {
+      try {
+        await window.electronAPI.deleteCourse(course.id);
+        navigate('/'); // Navigate back to dashboard after deletion
+      } catch (error) {
+        console.error('Error deleting course:', error);
+        alert('Failed to delete course. Please try again.');
+      }
+    }
+  };
+
   if (!course) return <div className="text-center py-20">Loading course...</div>;
 
   const allVideos = [...course.rootVideos, ...course.sections.flatMap(s => s.videos)];
@@ -393,7 +405,7 @@ export default function CoursePlayer() {
         </div>
         <div className="space-y-3">
           {activeVideo && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <button
                 onClick={handleMarkComplete}
                 className="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
@@ -417,6 +429,15 @@ export default function CoursePlayer() {
               </button>
             </div>
           )}
+          <div className="pt-2 border-t border-gray-700">
+            <button
+              onClick={handleDeleteCourse}
+              className="w-full px-4 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-600/50 hover:border-red-600 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2 text-red-400 hover:text-red-300"
+            >
+              <Trash2 className="w-4 h-4" />
+              Delete Course
+            </button>
+          </div>
           <div>
             {activeVideo && duration > 0 && (
               <div className="space-y-2">

@@ -8,8 +8,8 @@ export default function Layout() {
     <div className="min-h-screen bg-gray-900 text-white font-sans">
       <header className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 text-xl font-bold text-blue-400 hover:text-blue-300 transition-colors">
-            <Library className="w-6 h-6" />
+          <Link to="/" className="flex items-center gap-2 text-lg text-white hover:text-gray-300 transition-colors">
+            <Library className="w-5 h-5" />
             <span>Nilaa Player</span>
           </Link>
           <Link 

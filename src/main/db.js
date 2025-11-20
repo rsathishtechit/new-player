@@ -242,3 +242,14 @@ export function markVideoComplete(videoId, courseId) {
     });
   });
 }
+
+export function deleteCourse(courseId) {
+  return new Promise((resolve, reject) => {
+    // Due to CASCADE constraints, deleting the course will automatically delete
+    // all related sections, videos, and progress records
+    db.run('DELETE FROM courses WHERE id = ?', [courseId], (err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+}

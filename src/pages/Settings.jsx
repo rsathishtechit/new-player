@@ -10,6 +10,9 @@ import {
   Play,
   Monitor,
   Zap,
+  Download,
+  CheckCircle,
+  AlertCircle,
 } from "lucide-react";
 
 export default function Settings() {
@@ -23,10 +26,99 @@ export default function Settings() {
     showTitleInFullscreen: true,
   });
   const [saved, setSaved] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState({
+    checking: false,
+    available: false,
+    downloading: false,
+    downloaded: false,
+    progress: 0,
+    version: null,
+    error: null,
+  });
 
   useEffect(() => {
     loadSettings();
+    setupUpdateListeners();
+
+    // Check for updates on mount
+    checkForUpdates();
+
+    return () => {
+      // Clean up listeners
+      if (window.electronAPI) {
+        // Note: ipcRenderer.removeAllListeners would be ideal but not available via contextBridge
+        // The listeners will be cleaned up when component unmounts
+      }
+    };
   }, []);
+
+  const setupUpdateListeners = () => {
+    if (!window.electronAPI) return;
+
+    window.electronAPI.onUpdateAvailable?.((data) => {
+      setUpdateStatus((prev) => ({
+        ...prev,
+        available: true,
+        version: data.version,
+        checking: false,
+      }));
+    });
+
+    window.electronAPI.onUpdateNotAvailable?.(() => {
+      setUpdateStatus((prev) => ({
+        ...prev,
+        checking: false,
+        available: false,
+      }));
+    });
+
+    window.electronAPI.onUpdateProgress?.((data) => {
+      setUpdateStatus((prev) => ({
+        ...prev,
+        downloading: true,
+        progress: data.percent,
+      }));
+    });
+
+    window.electronAPI.onUpdateDownloaded?.((data) => {
+      setUpdateStatus((prev) => ({
+        ...prev,
+        downloading: false,
+        downloaded: true,
+        version: data.version,
+      }));
+    });
+
+    window.electronAPI.onUpdateError?.((data) => {
+      setUpdateStatus((prev) => ({
+        ...prev,
+        checking: false,
+        downloading: false,
+        error: data.message,
+      }));
+    });
+  };
+
+  const checkForUpdates = async () => {
+    if (!window.electronAPI?.checkForUpdates) return;
+
+    setUpdateStatus((prev) => ({ ...prev, checking: true, error: null }));
+    try {
+      await window.electronAPI.checkForUpdates();
+    } catch (error) {
+      setUpdateStatus((prev) => ({
+        ...prev,
+        checking: false,
+        error: error.message || "Failed to check for updates",
+      }));
+    }
+  };
+
+  const installUpdate = () => {
+    if (window.electronAPI?.quitAndInstall) {
+      window.electronAPI.quitAndInstall();
+    }
+  };
 
   const loadSettings = async () => {
     const skipForward = await window.electronAPI.getSetting(
@@ -296,6 +388,116 @@ export default function Settings() {
             Settings saved successfully!
           </div>
         )}
+
+        {/* Auto-Update Section */}
+        <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-6 border border-gray-700/50">
+          <div className="flex items-center gap-3 mb-6">
+            <Download className="w-6 h-6 text-blue-400" />
+            <h2 className="text-xl font-bold text-white">Updates</h2>
+          </div>
+
+          <div className="space-y-4">
+            {updateStatus.error && (
+              <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-4 flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-red-400 font-medium">Update Error</p>
+                  <p className="text-red-300 text-sm mt-1">
+                    {updateStatus.error}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {updateStatus.downloaded && (
+              <div className="bg-green-500/20 border border-green-500/50 rounded-lg p-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <CheckCircle className="w-5 h-5 text-green-400" />
+                  <div className="flex-1">
+                    <p className="text-green-400 font-medium">
+                      Update Ready to Install
+                    </p>
+                    {updateStatus.version && (
+                      <p className="text-green-300 text-sm mt-1">
+                        Version {updateStatus.version} is ready
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={installUpdate}
+                  className="w-full px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg font-medium text-white transition-colors"
+                >
+                  Restart and Install Update
+                </button>
+              </div>
+            )}
+
+            {updateStatus.downloading && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-white font-medium">
+                    Downloading update...
+                  </span>
+                  <span className="text-gray-400 text-sm">
+                    {Math.round(updateStatus.progress)}%
+                  </span>
+                </div>
+                <div className="w-full bg-gray-700 h-2 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-blue-500 transition-all duration-300"
+                    style={{ width: `${updateStatus.progress}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {updateStatus.available &&
+              !updateStatus.downloading &&
+              !updateStatus.downloaded && (
+                <div className="bg-blue-500/20 border border-blue-500/50 rounded-lg p-4">
+                  <div className="flex items-center gap-3 mb-3">
+                    <Download className="w-5 h-5 text-blue-400" />
+                    <div className="flex-1">
+                      <p className="text-blue-400 font-medium">
+                        Update Available
+                      </p>
+                      {updateStatus.version && (
+                        <p className="text-blue-300 text-sm mt-1">
+                          Version {updateStatus.version} is available
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-gray-400 text-sm mb-3">
+                    The update will download automatically in the background.
+                  </p>
+                </div>
+              )}
+
+            {!updateStatus.available &&
+              !updateStatus.downloading &&
+              !updateStatus.downloaded && (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-white font-medium">Current Version</p>
+                    <p className="text-gray-400 text-sm">
+                      You're running the latest version
+                    </p>
+                  </div>
+                  <button
+                    onClick={checkForUpdates}
+                    disabled={updateStatus.checking}
+                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-medium text-white transition-colors"
+                  >
+                    {updateStatus.checking
+                      ? "Checking..."
+                      : "Check for Updates"}
+                  </button>
+                </div>
+              )}
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -10,4 +10,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   resetVideoProgress: (videoId) => ipcRenderer.invoke('db:resetVideoProgress', videoId),
   resetCourseProgress: (courseId) => ipcRenderer.invoke('db:resetCourseProgress', courseId),
   markVideoComplete: (data) => ipcRenderer.invoke('db:markVideoComplete', data),
+  deleteCourse: (courseId) => ipcRenderer.invoke('db:deleteCourse', courseId),
+  // Auto-updater API
+  checkForUpdates: () => ipcRenderer.invoke('updater:checkForUpdates'),
+  quitAndInstall: () => ipcRenderer.invoke('updater:quitAndInstall'),
+  onUpdateAvailable: (callback) => ipcRenderer.on('update-available', (_event, data) => callback(data)),
+  onUpdateNotAvailable: (callback) => ipcRenderer.on('update-not-available', () => callback()),
+  onUpdateProgress: (callback) => ipcRenderer.on('update-progress', (_event, data) => callback(data)),
+  onUpdateDownloaded: (callback) => ipcRenderer.on('update-downloaded', (_event, data) => callback(data)),
+  onUpdateError: (callback) => ipcRenderer.on('update-error', (_event, data) => callback(data)),
 });

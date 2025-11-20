@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Library, Settings, Play, BookOpen, CheckCircle, Clock } from 'lucide-react';
+import { Plus, Library, Settings, Play, BookOpen, CheckCircle, Clock, Trash2 } from 'lucide-react';
 
 export default function Dashboard() {
   const [courses, setCourses] = useState([]);
@@ -41,6 +41,19 @@ export default function Dashboard() {
 
   const handleCourseClick = (courseId) => {
     navigate(`/course/${courseId}`);
+  };
+
+  const handleDeleteCourse = async (e, courseId, courseTitle) => {
+    e.stopPropagation(); // Prevent triggering course click
+    if (confirm(`Are you sure you want to delete "${courseTitle}"? This will remove all videos, progress, and data associated with this course. This action cannot be undone.`)) {
+      try {
+        await window.electronAPI.deleteCourse(courseId);
+        await loadCourses(); // Reload courses after deletion
+      } catch (error) {
+        console.error('Error deleting course:', error);
+        alert('Failed to delete course. Please try again.');
+      }
+    }
   };
 
   const completionPercentage = stats.totalVideos > 0 
@@ -119,31 +132,42 @@ export default function Dashboard() {
                     : 0;
                   
                   return (
-                    <button
+                    <div
                       key={course.id}
-                      onClick={() => handleCourseClick(course.id)}
-                      className="w-full flex items-center gap-4 p-4 bg-gray-700/30 hover:bg-gray-700/50 rounded-xl transition-all group"
+                      className="w-full flex items-center gap-4 p-4 bg-gray-700/30 hover:bg-gray-700/50 rounded-xl transition-all group relative"
                     >
-                      <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-500 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <Play className="w-6 h-6 text-white" />
-                      </div>
-                      <div className="flex-1 text-left">
-                        <h3 className="font-semibold text-white group-hover:text-blue-400 transition-colors">
-                          {course.title}
-                        </h3>
-                        <p className="text-sm text-gray-400">
-                          {course.completed_videos}/{course.total_videos} videos completed
-                        </p>
-                      </div>
-                      <div className="w-32">
-                        <div className="w-full bg-gray-600 h-2 rounded-full overflow-hidden">
-                          <div 
-                            className="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all"
-                            style={{ width: `${progress}%` }}
-                          />
+                      <button
+                        onClick={() => handleCourseClick(course.id)}
+                        className="flex-1 flex items-center gap-4"
+                      >
+                        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <Play className="w-6 h-6 text-white" />
                         </div>
-                      </div>
-                    </button>
+                        <div className="flex-1 text-left">
+                          <h3 className="font-semibold text-white group-hover:text-blue-400 transition-colors">
+                            {course.title}
+                          </h3>
+                          <p className="text-sm text-gray-400">
+                            {course.completed_videos}/{course.total_videos} videos completed
+                          </p>
+                        </div>
+                        <div className="w-32">
+                          <div className="w-full bg-gray-600 h-2 rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all"
+                              style={{ width: `${progress}%` }}
+                            />
+                          </div>
+                        </div>
+                      </button>
+                      <button
+                        onClick={(e) => handleDeleteCourse(e, course.id, course.title)}
+                        className="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                        title="Delete course"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                    </div>
                   );
                 })
               )}
@@ -202,29 +226,40 @@ export default function Dashboard() {
                 : 0;
               
               return (
-                <button
+                <div
                   key={course.id}
-                  onClick={() => handleCourseClick(course.id)}
                   className="group relative bg-gray-800/50 backdrop-blur-sm rounded-2xl overflow-hidden border border-gray-700/50 hover:border-blue-500/50 transition-all"
                 >
-                  <div className="aspect-video bg-gradient-to-br from-gray-700 to-gray-800 flex items-center justify-center">
-                    <Play className="w-16 h-16 text-gray-500 group-hover:text-blue-400 group-hover:scale-110 transition-all" />
-                  </div>
-                  <div className="p-4">
-                    <h3 className="font-semibold text-white mb-2 group-hover:text-blue-400 transition-colors">
-                      {course.title}
-                    </h3>
-                    <p className="text-sm text-gray-400 mb-3">
-                      {course.completed_videos}/{course.total_videos} completed
-                    </p>
-                    <div className="w-full bg-gray-700 h-1.5 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-gradient-to-r from-blue-500 to-purple-500"
-                        style={{ width: `${progress}%` }}
-                      />
+                  <button
+                    onClick={() => handleCourseClick(course.id)}
+                    className="w-full text-left"
+                  >
+                    <div className="aspect-video bg-gradient-to-br from-gray-700 to-gray-800 flex items-center justify-center">
+                      <Play className="w-16 h-16 text-gray-500 group-hover:text-blue-400 group-hover:scale-110 transition-all" />
                     </div>
-                  </div>
-                </button>
+                    <div className="p-4">
+                      <h3 className="font-semibold text-white mb-2 group-hover:text-blue-400 transition-colors">
+                        {course.title}
+                      </h3>
+                      <p className="text-sm text-gray-400 mb-3">
+                        {course.completed_videos}/{course.total_videos} completed
+                      </p>
+                      <div className="w-full bg-gray-700 h-1.5 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-gradient-to-r from-blue-500 to-purple-500"
+                          style={{ width: `${progress}%` }}
+                        />
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={(e) => handleDeleteCourse(e, course.id, course.title)}
+                    className="absolute top-2 right-2 p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/20 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                    title="Delete course"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                  </button>
+                </div>
               );
             })}
           </div>
