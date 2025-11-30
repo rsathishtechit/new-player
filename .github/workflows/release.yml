@@ -55,6 +55,26 @@ jobs:
         run: npm run make
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: false
+
+      - name: Verify build output directory exists (macOS/Linux)
+        if: matrix.os != 'windows-latest'
+        run: |
+          if [ ! -d "out/make" ]; then
+            echo "ERROR: out/make directory does not exist!"
+            exit 1
+          fi
+          echo "Build output directory exists"
+
+      - name: Verify build output directory exists (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "out\make")) {
+            Write-Host "ERROR: out/make directory does not exist!"
+            exit 1
+          }
+          Write-Host "Build output directory exists"
 
       - name: List output files (macOS)
         if: matrix.os == 'macos-latest'
@@ -68,18 +88,30 @@ jobs:
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
+          Write-Host "=== All files in out/make ==="
+          Get-ChildItem -Path "out\make" -Recurse -File | Format-Table FullName, Length, LastWriteTime
           Write-Host "=== Squirrel Windows files ==="
-          Get-ChildItem -Path "out\make\squirrel.windows" -Recurse -File | Format-Table Name, Length, LastWriteTime
+          if (Test-Path "out\make\squirrel.windows") {
+            Get-ChildItem -Path "out\make\squirrel.windows" -Recurse -File | Format-Table Name, Length, LastWriteTime
+          } else {
+            Write-Host "squirrel.windows directory not found"
+          }
           Write-Host "=== ZIP files ==="
-          Get-ChildItem -Path "out\make\zip\win32" -Recurse -Filter "*.zip" | Format-Table Name, Length, LastWriteTime
+          if (Test-Path "out\make\zip\win32") {
+            Get-ChildItem -Path "out\make\zip\win32" -Recurse -Filter "*.zip" | Format-Table Name, Length, LastWriteTime
+          } else {
+            Write-Host "zip/win32 directory not found"
+          }
 
       - name: List output files (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: |
+          echo "=== All files in out/make ==="
+          find out/make -type f 2>/dev/null | head -20 || echo "out/make not found or empty"
           echo "=== DEB files ==="
-          ls -lh out/make/*.deb || echo "No DEB files found"
+          find out/make -name "*.deb" -type f 2>/dev/null || echo "No DEB files found"
           echo "=== ZIP files ==="
-          ls -lh out/make/zip/linux/*/*.zip || echo "No ZIP files found"
+          find out/make -path "*/zip/linux/*/*.zip" -type f 2>/dev/null || echo "No Linux ZIP files found"
 
       - name: Upload macOS DMG
         if: matrix.os == 'macos-latest'
@@ -99,27 +131,82 @@ jobs:
 
       - name: Upload Windows installer
         if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $exeFiles = Get-ChildItem -Path "out\make" -Recurse -Filter "*.exe" -File
+          if ($exeFiles.Count -eq 0) {
+            Write-Host "ERROR: No .exe files found!"
+            Get-ChildItem -Path "out\make" -Recurse | Format-Table FullName
+            exit 1
+          }
+          Write-Host "Found $($exeFiles.Count) .exe file(s):"
+          $exeFiles | ForEach-Object { Write-Host $_.FullName }
+          # Create a directory for artifacts
+          New-Item -ItemType Directory -Force -Path "windows-artifacts" | Out-Null
+          # Copy all exe files
+          $exeFiles | Copy-Item -Destination "windows-artifacts" -Force
+        continue-on-error: false
+
+      - name: Upload Windows installer artifact
+        if: matrix.os == 'windows-latest'
         uses: actions/upload-artifact@v4
         with:
           name: windows-installer
-          path: out/make/squirrel.windows/*/*.exe
-          if-no-files-found: warn
+          path: windows-artifacts/*.exe
+          if-no-files-found: error
 
       - name: Upload Windows ZIP
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $zipFiles = Get-ChildItem -Path "out\make" -Recurse -Filter "*.zip" -File
+          if ($zipFiles.Count -eq 0) {
+            Write-Host "WARNING: No .zip files found for Windows!"
+            Get-ChildItem -Path "out\make" -Recurse | Format-Table FullName
+          } else {
+            Write-Host "Found $($zipFiles.Count) .zip file(s):"
+            $zipFiles | ForEach-Object { Write-Host $_.FullName }
+            # Create a directory for artifacts
+            New-Item -ItemType Directory -Force -Path "windows-zip-artifacts" | Out-Null
+            # Copy all zip files
+            $zipFiles | Copy-Item -Destination "windows-zip-artifacts" -Force
+          }
+        continue-on-error: true
+
+      - name: Upload Windows ZIP artifact
         if: matrix.os == 'windows-latest'
         uses: actions/upload-artifact@v4
         with:
           name: windows-zip
-          path: out/make/zip/win32/*/*.zip
+          path: windows-zip-artifacts/*.zip
           if-no-files-found: warn
 
       - name: Upload Linux DEB
         if: matrix.os == 'ubuntu-latest'
+        run: |
+          # Find all .deb files
+          DEB_FILES=$(find out/make -name "*.deb" -type f 2>/dev/null)
+          if [ -z "$DEB_FILES" ]; then
+            echo "ERROR: No .deb files found!"
+            echo "Contents of out/make:"
+            find out/make -type f 2>/dev/null || echo "out/make is empty or doesn't exist"
+            exit 1
+          fi
+          echo "Found .deb file(s):"
+          echo "$DEB_FILES"
+          # Create artifacts directory
+          mkdir -p linux-artifacts
+          # Copy deb files
+          find out/make -name "*.deb" -type f -exec cp {} linux-artifacts/ \;
+        continue-on-error: false
+
+      - name: Upload Linux DEB artifact
+        if: matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@v4
         with:
           name: linux-deb
-          path: out/make/*.deb
-          if-no-files-found: warn
+          path: linux-artifacts/*.deb
+          if-no-files-found: error
 
   release:
     name: Create GitHub Release
