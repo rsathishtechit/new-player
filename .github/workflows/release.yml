@@ -20,12 +20,14 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-latest, windows-latest]
+        os: [macos-latest, windows-latest, ubuntu-latest]
         include:
           - os: macos-latest
             platform: darwin
           - os: windows-latest
             platform: win32
+          - os: ubuntu-latest
+            platform: linux
 
     steps:
       - name: Checkout code
@@ -36,6 +38,12 @@ jobs:
         with:
           node-version: "20"
           cache: "npm"
+
+      - name: Install system dependencies (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fakeroot dpkg-dev
 
       - name: Install dependencies
         run: npm ci
@@ -64,6 +72,14 @@ jobs:
           Get-ChildItem -Path "out\make\squirrel.windows" -Recurse -File | Format-Table Name, Length, LastWriteTime
           Write-Host "=== ZIP files ==="
           Get-ChildItem -Path "out\make\zip\win32" -Recurse -Filter "*.zip" | Format-Table Name, Length, LastWriteTime
+
+      - name: List output files (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          echo "=== DEB files ==="
+          ls -lh out/make/*.deb || echo "No DEB files found"
+          echo "=== ZIP files ==="
+          ls -lh out/make/zip/linux/*/*.zip || echo "No ZIP files found"
 
       - name: Upload macOS DMG
         if: matrix.os == 'macos-latest'
@@ -95,6 +111,14 @@ jobs:
         with:
           name: windows-zip
           path: out/make/zip/win32/*/*.zip
+          if-no-files-found: warn
+
+      - name: Upload Linux DEB
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-deb
+          path: out/make/*.deb
           if-no-files-found: warn
 
   release:
@@ -140,17 +164,21 @@ jobs:
             - Setup.exe installer (recommended for Windows)
             - ZIP archive (portable)
 
+            **Linux:**
+            - DEB package (recommended for Debian/Ubuntu)
+
             ### Changes
             - Bug fixes and improvements
 
             ---
             Built with ❤️ using Electron
           draft: false
-          prerelease: false
+          prerelease: true
           files: |
             artifacts/macos-dmg/*
             artifacts/macos-zip/*
             artifacts/windows-installer/*
             artifacts/windows-zip/*
+            artifacts/linux-deb/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
