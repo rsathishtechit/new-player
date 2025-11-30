@@ -1,0 +1,72 @@
+/* Video Player Styles */
+.vjs-skip-back-button,
+.vjs-skip-forward-button {
+  position: relative;
+}
+
+.vjs-skip-back-button .vjs-icon-placeholder::before,
+.vjs-skip-forward-button .vjs-icon-placeholder::before {
+  content: '';
+}
+
+.video-js {
+  height: 100% !important;
+}
+
+.vjs-time-display {
+  font-size: 1em;
+  line-height: 3em;
+  min-width: 2em;
+  width: auto;
+  padding-left: 1em;
+  padding-right: 1em;
+}
+
+.vjs-current-time-display,
+.vjs-duration-display {
+  display: inline;
+}
+
+/* Remove focus outline for video player */
+.video-js:focus,
+.video-js:focus-visible,
+.video-js video:focus,
+.video-js video:focus-visible {
+  outline: none !important;
+}
+
+/* Remove focus outline in fullscreen */
+.video-js.vjs-fullscreen:focus,
+.video-js.vjs-fullscreen:focus-visible,
+.video-js.vjs-fullscreen video:focus,
+.video-js.vjs-fullscreen video:focus-visible {
+  outline: none !important;
+}
+
+/* Remove focus outline from all video-js elements */
+.video-js *:focus,
+.video-js *:focus-visible {
+  outline: none !important;
+}
+
+/* Skip button duration label */
+.vjs-skip-back-button .skip-duration,
+.vjs-skip-forward-button .skip-duration {
+  font-size: 10px;
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+}
+
+/* Fullscreen title overlay */
+.video-player-title-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.8), transparent);
+  padding: 1.5rem;
+  pointer-events: none;
+  z-index: 50;
+}
+

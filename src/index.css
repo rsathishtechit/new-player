@@ -1,1 +1,19 @@
 @import "tailwindcss";
+
+/* Remove focus outline for video player in normal and fullscreen view */
+.video-js:focus,
+.video-js:focus-visible,
+.video-js video:focus,
+.video-js video:focus-visible,
+.video-js.vjs-fullscreen:focus,
+.video-js.vjs-fullscreen:focus-visible,
+.video-js.vjs-fullscreen video:focus,
+.video-js.vjs-fullscreen video:focus-visible {
+  outline: none !important;
+}
+
+/* Remove focus outline from all video-js child elements */
+.video-js *:focus,
+.video-js *:focus-visible {
+  outline: none !important;
+}

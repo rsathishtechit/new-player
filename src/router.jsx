@@ -1,14 +1,15 @@
-import { lazy } from 'react';
-import { createHashRouter } from 'react-router-dom';
-import Layout from './components/Layout';
+import { lazy } from "react";
+import { createHashRouter } from "react-router-dom";
+import Layout from "./components/Layout";
 
-const Dashboard = lazy(() => import('./pages/Dashboard'));
-const CoursePlayer = lazy(() => import('./pages/CoursePlayer'));
-const Settings = lazy(() => import('./pages/Settings'));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const CoursePlayer = lazy(() => import("./pages/CoursePlayer"));
+const CourseLibrary = lazy(() => import("./pages/CourseLibrary"));
+const Settings = lazy(() => import("./pages/Settings"));
 
 export const router = createHashRouter([
   {
-    path: '/',
+    path: "/",
     element: <Layout />,
     children: [
       {
@@ -16,11 +17,15 @@ export const router = createHashRouter([
         element: <Dashboard />,
       },
       {
-        path: 'course/:courseId',
+        path: "course/:courseId",
         element: <CoursePlayer />,
       },
       {
-        path: 'settings',
+        path: "library",
+        element: <CourseLibrary />,
+      },
+      {
+        path: "settings",
         element: <Settings />,
       },
     ],
