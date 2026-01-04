@@ -219,10 +219,11 @@ jobs:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          path: artifacts
+          path: release-assets
+          merge-multiple: true
 
       - name: Display structure of downloaded files
-        run: ls -R artifacts
+        run: ls -R release-assets
 
       - name: Get version from tag or input
         id: get_version
@@ -234,7 +235,7 @@ jobs:
           fi
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.get_version.outputs.version }}
           name: Nilaa Player ${{ steps.get_version.outputs.version }}
@@ -262,10 +263,6 @@ jobs:
           draft: false
           prerelease: true
           files: |
-            artifacts/macos-dmg/*
-            artifacts/macos-zip/*
-            artifacts/windows-installer/*
-            artifacts/windows-zip/*
-            artifacts/linux-deb/*
+            release-assets/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
