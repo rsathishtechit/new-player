@@ -1,7 +1,7 @@
 {
   "name": "nilaa-player",
   "productName": "Nilaa Player",
-  "version": "0.0.3",
+  "version": "0.1.0",
   "description": "A beautiful video course player with progress tracking",
   "main": ".vite/build/main.js",
   "scripts": {
