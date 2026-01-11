@@ -91,7 +91,72 @@ export default function Dashboard() {
     .slice(0, 3);
 
   return (
-    <div className="min-h-screen">
+    <>
+      {/* Hero: Recently Accessed Course */}
+      {courses.length > 0 && (
+        <div className="mb-8">
+          <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-3xl p-8 border border-gray-700/50 shadow-2xl relative overflow-hidden group">
+            {/* Background Accent */}
+            <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 blur-3xl -mr-32 -mt-32 rounded-full" />
+            <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-500/10 blur-3xl -ml-32 -mb-32 rounded-full" />
+
+            <div className="relative z-10 flex flex-col md:flex-row md:items-center gap-8">
+              <div className="w-full md:w-64 aspect-video bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform duration-500">
+                <Play className="w-16 h-16 text-white" />
+              </div>
+
+              <div className="flex-1">
+                <div className="flex items-center gap-2 text-blue-400 text-sm font-medium mb-2">
+                  <Clock className="w-4 h-4" />
+                  <span>Recently Accessed</span>
+                </div>
+                <h1 className="text-3xl md:text-4xl font-extrabold text-white mb-4 group-hover:text-blue-400 transition-colors">
+                  {courses[0].title}
+                </h1>
+                
+                <div className="flex items-center gap-6 mb-6">
+                  <div className="flex items-center gap-2 text-gray-400">
+                    <BookOpen className="w-5 h-5" />
+                    <span>{courses[0].total_videos} Videos</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-gray-400">
+                    <CheckCircle className="w-5 h-5 text-green-500" />
+                    <span>{courses[0].completed_videos} Completed</span>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                  <button
+                    onClick={() => handleCourseClick(courses[0].id)}
+                    className="w-full sm:w-auto px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2 active:scale-95"
+                  >
+                    <Play className="w-5 h-5 fill-current" />
+                    Resume Learning
+                  </button>
+                  <p className="text-gray-400 text-sm italic">
+                    {courses[0].last_accessed 
+                      ? `Last watched ${new Date(courses[0].last_accessed).toLocaleDateString()}` 
+                      : 'Just added to library'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Progress bar at the bottom */}
+            <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-gray-700/50">
+              <div 
+                className="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all duration-1000"
+                style={{ 
+                  width: `${courses[0].total_videos > 0 
+                    ? (courses[0].completed_videos / courses[0].total_videos) * 100 
+                    : 0}%` 
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 text-white shadow-lg">
@@ -325,6 +390,6 @@ export default function Dashboard() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

@@ -438,24 +438,6 @@ export default function CoursePlayer() {
               Delete Course
             </button>
           </div>
-          <div>
-            {activeVideo && duration > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-semibold">{activeVideo.title}</h2>
-                  <span className="text-sm text-gray-400">
-                    {formatTime(currentTime)} / {formatTime(duration)}
-                  </span>
-                </div>
-                <div className="w-full bg-gray-700 h-1 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-blue-500 transition-all duration-300"
-                    style={{ width: `${(currentTime / duration) * 100}%` }}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
           <div className="flex items-center gap-4 text-sm">
             <div className="flex items-center gap-2">
               <CheckCircle className="w-4 h-4 text-green-500" />

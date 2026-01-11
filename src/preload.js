@@ -11,4 +11,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   resetCourseProgress: (courseId) => ipcRenderer.invoke('db:resetCourseProgress', courseId),
   markVideoComplete: (data) => ipcRenderer.invoke('db:markVideoComplete', data),
   deleteCourse: (courseId) => ipcRenderer.invoke('db:deleteCourse', courseId),
+  recordLearningTime: (seconds) => ipcRenderer.invoke('db:recordLearningTime', seconds),
+  getTodayLearningTime: () => ipcRenderer.invoke('db:getTodayLearningTime'),
 });

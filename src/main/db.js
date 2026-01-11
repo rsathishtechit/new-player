@@ -60,6 +60,13 @@ export function initDB() {
     `);
 
     db.run(`
+      CREATE TABLE IF NOT EXISTS daily_learning (
+        date TEXT PRIMARY KEY,
+        duration_seconds INTEGER DEFAULT 0
+      )
+    `);
+
+    db.run(`
       CREATE TABLE IF NOT EXISTS settings (
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
@@ -150,12 +157,13 @@ export function getCourses() {
         c.*,
         COUNT(v.id) as total_videos,
         COUNT(p.video_id) as started_videos,
-        SUM(CASE WHEN p.is_completed = 1 THEN 1 ELSE 0 END) as completed_videos
+        SUM(CASE WHEN p.is_completed = 1 THEN 1 ELSE 0 END) as completed_videos,
+        MAX(p.last_watched_at) as last_accessed
       FROM courses c
       LEFT JOIN videos v ON c.id = v.course_id
       LEFT JOIN progress p ON v.id = p.video_id
       GROUP BY c.id
-      ORDER BY c.created_at DESC
+      ORDER BY COALESCE(MAX(p.last_watched_at), c.created_at) DESC
     `,
       (err, rows) => {
         if (err) reject(err);
@@ -298,5 +306,38 @@ export function deleteCourse(courseId) {
       if (err) reject(err);
       else resolve();
     });
+  });
+}
+
+export function recordLearningTime(seconds) {
+  const today = new Date().toISOString().split("T")[0];
+  return new Promise((resolve, reject) => {
+    db.run(
+      `
+      INSERT INTO daily_learning (date, duration_seconds)
+      VALUES (?, ?)
+      ON CONFLICT(date) DO UPDATE SET
+        duration_seconds = duration_seconds + excluded.duration_seconds
+    `,
+      [today, seconds],
+      (err) => {
+        if (err) reject(err);
+        else resolve();
+      }
+    );
+  });
+}
+
+export function getTodayLearningTime() {
+  const today = new Date().toISOString().split("T")[0];
+  return new Promise((resolve, reject) => {
+    db.get(
+      "SELECT duration_seconds FROM daily_learning WHERE date = ?",
+      [today],
+      (err, row) => {
+        if (err) reject(err);
+        else resolve(row ? row.duration_seconds : 0);
+      }
+    );
   });
 }

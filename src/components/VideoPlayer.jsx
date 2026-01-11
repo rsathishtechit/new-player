@@ -15,6 +15,7 @@ const VideoPlayer = forwardRef(
       src,
       onTimeUpdate,
       onEnded,
+      onTimeSpent,
       initialTime = 0,
       title = "",
       onFullscreenChange,
@@ -37,25 +38,23 @@ const VideoPlayer = forwardRef(
     // Load settings on mount
     useEffect(() => {
       const loadSettings = async () => {
-        const skipForward = await window.electronAPI.getSetting(
-          "skipForwardDuration"
-        );
-        const skipBackward = await window.electronAPI.getSetting(
-          "skipBackwardDuration"
-        );
-        const playbackSpeed = await window.electronAPI.getSetting(
-          "defaultPlaybackSpeed"
-        );
-        const volume = await window.electronAPI.getSetting("defaultVolume");
-        const showTitle = await window.electronAPI.getSetting(
-          "showTitleInFullscreen"
-        );
+        const [skipForward, skipBackward, playbackSpeed, volume, showTitle] =
+          await Promise.all([
+            window.electronAPI.getSetting("skipForwardDuration"),
+            window.electronAPI.getSetting("skipBackwardDuration"),
+            window.electronAPI.getSetting("defaultPlaybackSpeed"),
+            window.electronAPI.getSetting("defaultVolume"),
+            window.electronAPI.getSetting("showTitleInFullscreen"),
+          ]);
 
         setSettings({
-          skipForwardDuration: skipForward ? parseFloat(skipForward) : 5,
-          skipBackwardDuration: skipBackward ? parseFloat(skipBackward) : 5,
-          defaultPlaybackSpeed: playbackSpeed ? parseFloat(playbackSpeed) : 1.0,
-          defaultVolume: volume ? parseFloat(volume) : 1.0,
+          skipForwardDuration:
+            skipForward !== null ? parseFloat(skipForward) : 5,
+          skipBackwardDuration:
+            skipBackward !== null ? parseFloat(skipBackward) : 5,
+          defaultPlaybackSpeed:
+            playbackSpeed !== null ? parseFloat(playbackSpeed) : 1.0,
+          defaultVolume: volume !== null ? parseFloat(volume) : 1.0,
           showTitleInFullscreen: showTitle !== "false",
         });
         setSettingsLoaded(true);
@@ -113,12 +112,8 @@ const VideoPlayer = forwardRef(
               player.currentTime(initialTime);
             }
             // Apply default playback speed and volume
-            if (settings.defaultPlaybackSpeed !== 1.0) {
-              player.playbackRate(settings.defaultPlaybackSpeed);
-            }
-            if (settings.defaultVolume !== 1.0) {
-              player.volume(settings.defaultVolume);
-            }
+            player.playbackRate(settings.defaultPlaybackSpeed);
+            player.volume(settings.defaultVolume);
           }
         ));
 
@@ -243,12 +238,58 @@ const VideoPlayer = forwardRef(
         controlBar.addChild(skipBackButton, {}, currentTimeIndex + 1);
         controlBar.addChild(skipForwardButton, {}, currentTimeIndex + 2);
 
+        let lastPlayTime = null;
+
+        const recordTimeSpent = () => {
+          if (lastPlayTime) {
+            const now = Date.now();
+            const spent = (now - lastPlayTime) / 1000;
+            if (spent > 0) {
+              if (onTimeSpent) onTimeSpent(spent);
+            }
+            lastPlayTime = now;
+          }
+        };
+
+        player.on("play", () => {
+          lastPlayTime = Date.now();
+        });
+
+        player.on("pause", () => {
+          recordTimeSpent();
+          lastPlayTime = null;
+        });
+
         player.on("timeupdate", () => {
           onTimeUpdate(player.currentTime());
+          // Record time spent every few seconds even if not paused
+          if (lastPlayTime && Date.now() - lastPlayTime > 5000) {
+            recordTimeSpent();
+          }
         });
 
         player.on("ended", () => {
           onEnded();
+        });
+
+        player.on("volumechange", () => {
+          const newVolume = player.volume();
+          window.electronAPI.setSetting({
+            key: "defaultVolume",
+            value: newVolume.toString(),
+          });
+        });
+
+        player.on("ratechange", () => {
+          const newRate = player.playbackRate();
+          window.electronAPI.setSetting({
+            key: "defaultPlaybackSpeed",
+            value: newRate.toString(),
+          });
+        });
+
+        player.on("dispose", () => {
+          recordTimeSpent();
         });
 
         // Listen for fullscreen changes
@@ -261,35 +302,47 @@ const VideoPlayer = forwardRef(
         });
       } else if (playerRef.current) {
         const player = playerRef.current;
-        // Check if player is in fullscreen before changing source
-        const wasFullscreen = player.isFullscreen();
 
-        player.src({ src: `file://${src}`, type: "video/mp4" });
-        if (initialTime > 0) {
-          player.currentTime(initialTime);
-        }
-        // Apply default playback speed and volume when changing video
-        if (settings.defaultPlaybackSpeed !== 1.0) {
+        // Only update source and time if they actually changed to prevent restarts on settings changes
+        const currentSrc = player.src();
+        const newSrc = `file://${src}`;
+
+        if (currentSrc !== newSrc) {
+          // Check if player is in fullscreen before changing source
+          const wasFullscreen = player.isFullscreen();
+
+          player.src({ src: newSrc, type: "video/mp4" });
+          if (initialTime > 0) {
+            player.currentTime(initialTime);
+          }
+          // Apply default playback speed and volume when changing video
           player.playbackRate(settings.defaultPlaybackSpeed);
-        }
-        if (settings.defaultVolume !== 1.0) {
           player.volume(settings.defaultVolume);
-        }
 
-        // Restore fullscreen after source change if it was previously in fullscreen
-        if (wasFullscreen) {
-          // Use loadeddata event to ensure video is ready before requesting fullscreen
-          const restoreFullscreen = () => {
-            if (!player.isFullscreen()) {
-              player.requestFullscreen();
+          // Restore fullscreen after source change if it was previously in fullscreen
+          if (wasFullscreen) {
+            // Use loadeddata event to ensure video is ready before requesting fullscreen
+            const restoreFullscreen = () => {
+              if (!player.isFullscreen()) {
+                player.requestFullscreen();
+              }
+              player.off("loadeddata", restoreFullscreen);
+            };
+            player.on("loadeddata", restoreFullscreen);
+
+            // Fallback: if video is already loaded, restore immediately
+            if (player.readyState() >= 2) {
+              restoreFullscreen();
             }
-            player.off("loadeddata", restoreFullscreen);
-          };
-          player.on("loadeddata", restoreFullscreen);
-
-          // Fallback: if video is already loaded, restore immediately
-          if (player.readyState() >= 2) {
-            restoreFullscreen();
+          }
+        } else {
+          // If source didn't change, just update settings if needed
+          // We don't update volume/rate here if it was a volumechange/ratechange event to avoid fighting the user
+          // But if settings changed from elsewhere (e.g. Settings page), we might want to apply them
+          // For now, let's just ensure they stay in sync if not playing
+          if (player.paused()) {
+            player.playbackRate(settings.defaultPlaybackSpeed);
+            player.volume(settings.defaultVolume);
           }
         }
       }

@@ -45,10 +45,11 @@ export default function Settings() {
     );
 
     setSettings({
-      skipForwardDuration: skipForward ? parseFloat(skipForward) : 5,
-      skipBackwardDuration: skipBackward ? parseFloat(skipBackward) : 5,
-      defaultPlaybackSpeed: playbackSpeed ? parseFloat(playbackSpeed) : 1.0,
-      defaultVolume: volume ? parseFloat(volume) : 1.0,
+      skipForwardDuration: skipForward !== null ? parseFloat(skipForward) : 5,
+      skipBackwardDuration: skipBackward !== null ? parseFloat(skipBackward) : 5,
+      defaultPlaybackSpeed:
+        playbackSpeed !== null ? parseFloat(playbackSpeed) : 1.0,
+      defaultVolume: volume !== null ? parseFloat(volume) : 1.0,
       autoplay: autoplay === "true",
       showTitleInFullscreen: showTitle !== "false", // Default to true
     });

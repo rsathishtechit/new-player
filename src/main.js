@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, dialog, protocol, nativeImage, Tray, Menu 
 import path from 'node:path';
 import fs from 'node:fs';
 import started from 'electron-squirrel-startup';
-import { initDB, addCourse, getCourses, getCourseDetails, updateProgress, getSetting, setSetting, resetVideoProgress, resetCourseProgress, markVideoComplete, deleteCourse } from './main/db';
+import { initDB, addCourse, getCourses, getCourseDetails, updateProgress, getSetting, setSetting, resetVideoProgress, resetCourseProgress, markVideoComplete, deleteCourse, recordLearningTime, getTodayLearningTime } from './main/db';
 import { scanCourseFolder } from './main/scanner';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
@@ -461,6 +461,14 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('db:deleteCourse', async (event, courseId) => {
     await deleteCourse(courseId);
+  });
+
+  ipcMain.handle('db:recordLearningTime', async (event, seconds) => {
+    await recordLearningTime(seconds);
+  });
+
+  ipcMain.handle('db:getTodayLearningTime', async () => {
+    return await getTodayLearningTime();
   });
 
   // Create splash screen first
