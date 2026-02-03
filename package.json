@@ -3,6 +3,10 @@
   "productName": "Nilaa Player",
   "version": "0.1.0",
   "description": "A beautiful video course player with progress tracking",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rsathishtechit/new-player"
+  },
   "main": ".vite/build/main.js",
   "scripts": {
     "start": "electron-forge start",

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, protocol, nativeImage, Tray, Menu } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, protocol, nativeImage, Tray, Menu, autoUpdater } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import started from 'electron-squirrel-startup';
@@ -13,6 +13,152 @@ if (started) {
 let splashWindow;
 let mainWindow;
 let tray = null;
+let pendingUserInitiatedUpdateCheck = false;
+let updateCheckInterval = null;
+
+const UPDATE_CHECK_INTERVAL_MS = 4 * 60 * 60 * 1000;
+
+function supportsAutoUpdates() {
+  return app.isPackaged && (process.platform === 'darwin' || process.platform === 'win32');
+}
+
+function getUpdateInfo() {
+  if (!app.isPackaged) {
+    return {
+      version: app.getVersion(),
+      updateSupported: false,
+      updateSupportReason: 'Auto-updates are available only in packaged builds.',
+    };
+  }
+  if (process.platform !== 'darwin' && process.platform !== 'win32') {
+    return {
+      version: app.getVersion(),
+      updateSupported: false,
+      updateSupportReason: 'Auto-updates are currently supported only on macOS and Windows.',
+    };
+  }
+  return {
+    version: app.getVersion(),
+    updateSupported: true,
+    updateSupportReason: '',
+  };
+}
+
+function getUpdateFeedURL() {
+  return `https://update.electronjs.org/rsathishtechit/new-player/${process.platform}-${process.arch}/${app.getVersion()}`;
+}
+
+function notifyUpdateStatus({ type, message, detail }) {
+  dialog.showMessageBox({
+    type,
+    buttons: ['OK'],
+    defaultId: 0,
+    title: 'Nilaa Player Updates',
+    message,
+    detail,
+  });
+}
+
+function setupAutoUpdates() {
+  if (!supportsAutoUpdates()) {
+    return;
+  }
+
+  try {
+    autoUpdater.setFeedURL({ url: getUpdateFeedURL() });
+  } catch (error) {
+    console.error('Failed to configure auto-updater feed URL:', error);
+    return;
+  }
+
+  autoUpdater.on('error', (error) => {
+    console.error('Auto-updater error:', error);
+    if (pendingUserInitiatedUpdateCheck) {
+      pendingUserInitiatedUpdateCheck = false;
+      notifyUpdateStatus({
+        type: 'error',
+        message: 'Unable to check for updates right now.',
+        detail: 'Please try again later.',
+      });
+    }
+  });
+
+  autoUpdater.on('update-available', () => {
+    if (pendingUserInitiatedUpdateCheck) {
+      pendingUserInitiatedUpdateCheck = false;
+      notifyUpdateStatus({
+        type: 'info',
+        message: 'Update found.',
+        detail: 'Downloading in the background. You will be prompted to restart once ready.',
+      });
+    }
+  });
+
+  autoUpdater.on('update-not-available', () => {
+    if (pendingUserInitiatedUpdateCheck) {
+      pendingUserInitiatedUpdateCheck = false;
+      notifyUpdateStatus({
+        type: 'info',
+        message: 'You are up to date.',
+        detail: `Current version: ${app.getVersion()}`,
+      });
+    }
+  });
+
+  autoUpdater.on('update-downloaded', () => {
+    dialog
+      .showMessageBox({
+        type: 'info',
+        buttons: ['Restart Now', 'Later'],
+        defaultId: 0,
+        cancelId: 1,
+        title: 'Update Ready',
+        message: 'A new version of Nilaa Player is ready to install.',
+        detail: 'Restart now to apply the update.',
+      })
+      .then(({ response }) => {
+        if (response === 0) {
+          autoUpdater.quitAndInstall();
+        }
+      });
+  });
+
+  autoUpdater.checkForUpdates();
+  updateCheckInterval = setInterval(() => {
+    autoUpdater.checkForUpdates();
+  }, UPDATE_CHECK_INTERVAL_MS);
+}
+
+function triggerUpdateCheck(userInitiated = false) {
+  if (!supportsAutoUpdates()) {
+    if (userInitiated) {
+      notifyUpdateStatus({
+        type: 'info',
+        message: 'Auto-updates are available only in packaged macOS and Windows builds.',
+        detail: 'Install the packaged app to receive automatic updates.',
+      });
+    }
+    return;
+  }
+
+  if (userInitiated) {
+    pendingUserInitiatedUpdateCheck = true;
+  }
+
+  try {
+    autoUpdater.checkForUpdates();
+  } catch (error) {
+    console.error('Manual update check failed:', error);
+    if (pendingUserInitiatedUpdateCheck) {
+      pendingUserInitiatedUpdateCheck = false;
+      notifyUpdateStatus({
+        type: 'error',
+        message: 'Unable to check for updates right now.',
+        detail: 'Please try again later.',
+      });
+    }
+  }
+}
 
 // Helper function to get icon path based on platform
 function getIconPath() {
@@ -331,6 +477,12 @@ function createTray() {
       }
     },
     {
+      label: 'Check for Updates',
+      click: () => {
+        triggerUpdateCheck(true);
+      }
+    },
+    {
       label: 'Quit',
       click: () => {
         app.quit();
@@ -356,6 +508,66 @@ function createTray() {
       }
     });
   }
+}
+
+function createAppMenu() {
+  const isMac = process.platform === 'darwin';
+  const template = [
+    ...(isMac
+      ? [
+          {
+            label: app.name,
+            submenu: [
+              { role: 'about' },
+              { type: 'separator' },
+              { role: 'services' },
+              { type: 'separator' },
+              { role: 'hide' },
+              { role: 'hideOthers' },
+              { role: 'unhide' },
+              { type: 'separator' },
+              { role: 'quit' },
+            ],
+          },
+        ]
+      : []),
+    {
+      label: 'File',
+      submenu: [{ role: isMac ? 'close' : 'quit' }],
+    },
+    {
+      label: 'View',
+      submenu: [
+        { role: 'reload' },
+        { role: 'toggledevtools' },
+        { type: 'separator' },
+        { role: 'resetzoom' },
+        { role: 'zoomin' },
+        { role: 'zoomout' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' },
+      ],
+    },
+    {
+      label: 'Window',
+      submenu: [
+        { role: 'minimize' },
+        { role: 'zoom' },
+        ...(isMac ? [{ type: 'separator' }, { role: 'front' }] : [{ role: 'close' }]),
+      ],
+    },
+    {
+      label: 'Help',
+      submenu: [
+        {
+          label: 'Check for Updates',
+          click: () => triggerUpdateCheck(true),
+        },
+      ],
+    },
+  ];
+
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
 
@@ -396,9 +608,15 @@ app.whenReady().then(async () => {
   
   // Initialize database
   await initDB();
+
+  // Create app menu (includes update action)
+  createAppMenu();
   
   // Create system tray
   createTray();
+
+  // Configure auto-updates (packaged macOS/Windows only)
+  setupAutoUpdates();
   
   // Register custom protocol for local video files if needed, 
   // but webSecurity: false is often easier for local files in Electron
@@ -471,6 +689,15 @@ app.whenReady().then(async () => {
     return await getTodayLearningTime();
   });
 
+  ipcMain.handle('app:getUpdateInfo', async () => {
+    return getUpdateInfo();
+  });
+
+  ipcMain.handle('app:checkForUpdates', async () => {
+    triggerUpdateCheck(true);
+    return { started: supportsAutoUpdates() };
+  });
+
   // Create splash screen first
   createSplashWindow();
   
@@ -501,5 +728,9 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   if (tray) {
     tray.destroy();
+  }
+  if (updateCheckInterval) {
+    clearInterval(updateCheckInterval);
+    updateCheckInterval = null;
   }
 });
