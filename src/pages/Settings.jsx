@@ -10,6 +10,7 @@ import {
   Play,
   Monitor,
   Zap,
+  RefreshCw,
 } from "lucide-react";
 
 export default function Settings() {
@@ -23,9 +24,19 @@ export default function Settings() {
     showTitleInFullscreen: true,
   });
   const [saved, setSaved] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState({
+    version: "",
+    updateSupported: false,
+    updateSupportReason: "",
+  });
+  const [updateStatus, setUpdateStatus] = useState("");
+  const [lastChecked, setLastChecked] = useState("");
+  const [toastMessage, setToastMessage] = useState("");
 
   useEffect(() => {
     loadSettings();
+    loadUpdateInfo();
+    loadLastChecked();
   }, []);
 
   const loadSettings = async () => {
@@ -99,12 +110,64 @@ export default function Settings() {
     }
   };
 
+  const loadUpdateInfo = async () => {
+    const info = await window.electronAPI.getUpdateInfo();
+    if (info) {
+      setUpdateInfo(info);
+    }
+  };
+
+  const loadLastChecked = () => {
+    const stored = localStorage.getItem("lastUpdateCheckAt");
+    if (stored) {
+      setLastChecked(stored);
+    }
+  };
+
+  const formatTimestamp = (timestamp) => {
+    const date = new Date(timestamp);
+    if (Number.isNaN(date.getTime())) return "";
+    return date.toLocaleString();
+  };
+
+  const showToast = (message) => {
+    setToastMessage(message);
+    setTimeout(() => setToastMessage(""), 3000);
+  };
+
+  const handleCheckUpdates = async () => {
+    setUpdateStatus("Checking for updates...");
+    showToast("Checking for updates...");
+    const result = await window.electronAPI.checkForUpdates();
+    const now = new Date().toISOString();
+    localStorage.setItem("lastUpdateCheckAt", now);
+    setLastChecked(now);
+    if (result?.started) {
+      setUpdateStatus(
+        "Update check started. You will be prompted if an update is available."
+      );
+      showToast("Update check started.");
+    } else {
+      setUpdateStatus(
+        updateInfo.updateSupportReason ||
+          "Auto-updates are available only in packaged macOS and Windows builds."
+      );
+      showToast("Auto-updates are not available in this build.");
+    }
+    setTimeout(() => setUpdateStatus(""), 6000);
+  };
+
   const updateSetting = (key, value) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
   };
 
   return (
     <div className="max-w-4xl mx-auto">
+      {toastMessage && (
+        <div className="fixed top-6 right-6 z-50 rounded-lg bg-gray-900/95 text-white px-4 py-2 text-sm shadow-lg border border-gray-700">
+          {toastMessage}
+        </div>
+      )}
       <div className="flex items-center gap-4 mb-8">
         <button
           onClick={() => navigate(-1)}
@@ -271,6 +334,51 @@ export default function Settings() {
             <p className="text-sm text-gray-400 ml-8">
               Automatically play the next video when the current one ends
             </p>
+          </div>
+        </div>
+
+        {/* Updates */}
+        <div className="bg-gray-800/50 backdrop-blur-sm rounded-2xl p-6 border border-gray-700/50">
+          <div className="flex items-center gap-3 mb-6">
+            <RefreshCw className="w-6 h-6 text-blue-400" />
+            <h2 className="text-xl font-bold text-white">Updates</h2>
+          </div>
+
+          <div className="space-y-4">
+            <div className="text-sm text-gray-300">
+              Version:{" "}
+              <span className="text-white font-medium">
+                {updateInfo.version || "Unknown"}
+              </span>
+            </div>
+            <div className="text-sm text-gray-300">
+              Last checked:{" "}
+              <span className="text-white font-medium">
+                {lastChecked ? formatTimestamp(lastChecked) : "Never"}
+              </span>
+            </div>
+            {!updateInfo.updateSupported && updateInfo.updateSupportReason && (
+              <p className="text-sm text-gray-400">
+                {updateInfo.updateSupportReason}
+              </p>
+            )}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleCheckUpdates}
+                disabled={!updateInfo.updateSupported}
+                className={`flex items-center gap-2 px-5 py-2 rounded-lg font-medium transition-colors ${
+                  updateInfo.updateSupported
+                    ? "bg-blue-600 hover:bg-blue-700 text-white"
+                    : "bg-gray-700 text-gray-400 cursor-not-allowed"
+                }`}
+              >
+                <RefreshCw className="w-4 h-4" />
+                Check for Updates
+              </button>
+              {updateStatus && (
+                <span className="text-sm text-gray-300">{updateStatus}</span>
+              )}
+            </div>
           </div>
         </div>
 

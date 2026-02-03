@@ -13,4 +13,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   deleteCourse: (courseId) => ipcRenderer.invoke('db:deleteCourse', courseId),
   recordLearningTime: (seconds) => ipcRenderer.invoke('db:recordLearningTime', seconds),
   getTodayLearningTime: () => ipcRenderer.invoke('db:getTodayLearningTime'),
+  getUpdateInfo: () => ipcRenderer.invoke('app:getUpdateInfo'),
+  checkForUpdates: () => ipcRenderer.invoke('app:checkForUpdates'),
 });
