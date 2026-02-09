@@ -189,7 +189,7 @@ export default function CourseLibrary() {
                       <div className="w-full bg-gray-700 h-1.5 rounded-full overflow-hidden">
                         <div
                           className="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all"
-                          style={{ width: `${progress}%` }}
+                          style={{ width: `${progressPercent}%` }}
                         />
                       </div>
                       <div className="mt-2 text-xs text-gray-500">
