@@ -15,6 +15,7 @@ export default function CourseLibrary() {
   const [courses, setCourses] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [animatedProgress, setAnimatedProgress] = useState({});
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -67,6 +68,42 @@ export default function CourseLibrary() {
   const startIndex = (currentPage - 1) * COURSES_PER_PAGE;
   const endIndex = startIndex + COURSES_PER_PAGE;
   const currentCourses = courses.slice(startIndex, endIndex);
+
+  useEffect(() => {
+    let animationFrame;
+    const targets = {};
+    currentCourses.forEach((course) => {
+      const total = course.total_videos || 0;
+      const completed = course.completed_videos || 0;
+      const percent = total > 0 ? Math.ceil((completed / total) * 100) : 0;
+      targets[course.id] = percent;
+    });
+
+    const start = performance.now();
+    const durationMs = 800;
+
+    const tick = (now) => {
+      const progress = Math.min((now - start) / durationMs, 1);
+      setAnimatedProgress((prev) => {
+        const next = { ...prev };
+        currentCourses.forEach((course) => {
+          const target = targets[course.id] ?? 0;
+          next[course.id] = Math.ceil(target * progress);
+        });
+        return next;
+      });
+      if (progress < 1) {
+        animationFrame = requestAnimationFrame(tick);
+      }
+    };
+
+    animationFrame = requestAnimationFrame(tick);
+    return () => {
+      if (animationFrame) {
+        cancelAnimationFrame(animationFrame);
+      }
+    };
+  }, [currentCourses]);
 
   const goToPage = (page) => {
     if (page >= 1 && page <= totalPages) {
@@ -121,6 +158,7 @@ export default function CourseLibrary() {
                 course.total_videos > 0
                   ? (course.completed_videos / course.total_videos) * 100
                   : 0;
+              const progressPercent = animatedProgress[course.id] ?? 0;
 
               return (
                 <div
@@ -151,11 +189,11 @@ export default function CourseLibrary() {
                       <div className="w-full bg-gray-700 h-1.5 rounded-full overflow-hidden">
                         <div
                           className="h-full bg-gradient-to-r from-blue-500 to-purple-500 transition-all"
-                          style={{ width: `${progress}%` }}
+                          style={{ width: `${progressPercent}%` }}
                         />
                       </div>
                       <div className="mt-2 text-xs text-gray-500">
-                        {Math.round(progress)}% complete
+                        {progressPercent}% complete
                       </div>
                     </div>
                   </button>

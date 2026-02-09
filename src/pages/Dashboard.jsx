@@ -80,6 +80,12 @@ export default function Dashboard() {
       ? Math.round((stats.completedVideos / stats.totalVideos) * 100)
       : 0;
 
+  const getCourseActionLabel = (course) => {
+    if (!course) return "Start Learning";
+    if (course.status === "new") return "Start Learning";
+    return "Resume Learning";
+  };
+
   // Get recent courses (last 3)
   const recentCourses = courses.slice(0, 3);
 
@@ -131,7 +137,7 @@ export default function Dashboard() {
                     className="w-full sm:w-auto px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2 active:scale-95"
                   >
                     <Play className="w-5 h-5 fill-current" />
-                    {courses[0].started_videos > 0 ? "Resume Learning" : "Start Learning"}
+                    {getCourseActionLabel(courses[0])}
                   </button>
                   <p className="text-gray-400 text-sm italic">
                     {courses[0].last_accessed 

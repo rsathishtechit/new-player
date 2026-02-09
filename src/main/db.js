@@ -19,9 +19,32 @@ export function initDB() {
         id TEXT PRIMARY KEY,
         title TEXT NOT NULL,
         path TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'new',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+    db.all("PRAGMA table_info(courses)", (err, columns) => {
+      if (err) {
+        console.error("Failed to read courses schema:", err);
+        return;
+      }
+      const hasStatus = columns.some((column) => column.name === "status");
+      if (!hasStatus) {
+        db.run(
+          "ALTER TABLE courses ADD COLUMN status TEXT NOT NULL DEFAULT 'new'",
+          (alterErr) => {
+            if (alterErr) {
+              console.error("Failed to add status column to courses:", alterErr);
+              return;
+            }
+            refreshCourseStatuses();
+          }
+        );
+        return;
+      }
+      refreshCourseStatuses();
+    });
 
     db.run(`
       CREATE TABLE IF NOT EXISTS sections (
@@ -77,6 +100,20 @@ export function initDB() {
     db.run(`
       INSERT OR IGNORE INTO settings (key, value) VALUES ('autoplay', 'true')
     `);
+
+    function refreshCourseStatuses() {
+      db.all("SELECT id FROM courses", (err, rows) => {
+        if (err) {
+          console.error("Failed to load courses for status refresh:", err);
+          return;
+        }
+        rows.forEach((row) => {
+          updateCourseStatus(row.id).catch((statusErr) => {
+            console.error("Failed to refresh course status:", statusErr);
+          });
+        });
+      });
+    }
   });
 }
 
@@ -88,9 +125,9 @@ export function addCourse(title, coursePath, structure) {
       db.run("BEGIN TRANSACTION");
 
       const insertCourse = db.prepare(
-        "INSERT INTO courses (id, title, path) VALUES (?, ?, ?)"
+        "INSERT INTO courses (id, title, path, status) VALUES (?, ?, ?, ?)"
       );
-      insertCourse.run(courseId, title, coursePath);
+      insertCourse.run(courseId, title, coursePath, "new");
       insertCourse.finalize();
 
       let videoOrder = 0;
@@ -216,6 +253,45 @@ export function getCourseDetails(courseId) {
   });
 }
 
+function resolveCourseStatus({ total_videos, started_videos, completed_videos }) {
+  const total = Number(total_videos || 0);
+  const started = Number(started_videos || 0);
+  const completed = Number(completed_videos || 0);
+  if (total > 0 && completed >= total) {
+    return "complete";
+  }
+  if (started > 0) {
+    return "inprogress";
+  }
+  return "new";
+}
+
+export function updateCourseStatus(courseId) {
+  return new Promise((resolve, reject) => {
+    db.get(
+      `
+      SELECT
+        (SELECT COUNT(*) FROM videos WHERE course_id = ?) AS total_videos,
+        (SELECT COUNT(*) FROM progress WHERE course_id = ?) AS started_videos,
+        (SELECT COUNT(*) FROM progress WHERE course_id = ? AND is_completed = 1) AS completed_videos
+      `,
+      [courseId, courseId, courseId],
+      (err, stats) => {
+        if (err) return reject(err);
+        const status = resolveCourseStatus(stats || {});
+        db.run(
+          "UPDATE courses SET status = ? WHERE id = ?",
+          [status, courseId],
+          (updateErr) => {
+            if (updateErr) reject(updateErr);
+            else resolve(status);
+          }
+        );
+      }
+    );
+  });
+}
+
 export function updateProgress(videoId, courseId, currentTime, isCompleted) {
   return new Promise((resolve, reject) => {
     db.run(
@@ -229,8 +305,10 @@ export function updateProgress(videoId, courseId, currentTime, isCompleted) {
     `,
       [videoId, courseId, currentTime, isCompleted ? 1 : 0],
       (err) => {
-        if (err) reject(err);
-        else resolve();
+        if (err) return reject(err);
+        updateCourseStatus(courseId)
+          .then(resolve)
+          .catch(reject);
       }
     );
   });
@@ -263,18 +341,38 @@ export function setSetting(key, value) {
 
 export function resetVideoProgress(videoId) {
   return new Promise((resolve, reject) => {
-    db.run("DELETE FROM progress WHERE video_id = ?", [videoId], (err) => {
-      if (err) reject(err);
-      else resolve();
-    });
+    db.get(
+      "SELECT course_id FROM videos WHERE id = ?",
+      [videoId],
+      (lookupErr, row) => {
+        if (lookupErr) return reject(lookupErr);
+        db.run("DELETE FROM progress WHERE video_id = ?", [videoId], (err) => {
+          if (err) return reject(err);
+          if (row?.course_id) {
+            updateCourseStatus(row.course_id)
+              .then(resolve)
+              .catch(reject);
+            return;
+          }
+          resolve();
+        });
+      }
+    );
   });
 }
 
 export function resetCourseProgress(courseId) {
   return new Promise((resolve, reject) => {
     db.run("DELETE FROM progress WHERE course_id = ?", [courseId], (err) => {
-      if (err) reject(err);
-      else resolve();
+      if (err) return reject(err);
+      db.run(
+        "UPDATE courses SET status = 'new' WHERE id = ?",
+        [courseId],
+        (updateErr) => {
+          if (updateErr) reject(updateErr);
+          else resolve();
+        }
+      );
     });
   });
 }
@@ -291,8 +389,10 @@ export function markVideoComplete(videoId, courseId) {
     `,
       [videoId, courseId],
       (err) => {
-        if (err) reject(err);
-        else resolve();
+        if (err) return reject(err);
+        updateCourseStatus(courseId)
+          .then(resolve)
+          .catch(reject);
       }
     );
   });
